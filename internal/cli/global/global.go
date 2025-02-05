@@ -28,6 +28,9 @@ func InitState(cmd *cobra.Command) {
 	// and also make sure the command line inherits the proper variable chain(config file -> envvar -> flags)
 	CLIContext = &Context{}
 
+	// Initiate the CLI config but we don't use the config path feature so just leave it empty.
+	CLIContext.NewConfig("")
+
 	// Initiate the formatter(this controls the command line output)
 	format, _ := cmd.Flags().GetString("format")
 	if format != "" {
@@ -44,4 +47,13 @@ func (c *Context) NewFormatter() {
 	}
 
 	c.Fmt = clifmt
+}
+
+func (c *Context) NewConfig(configPath string) {
+	config, err := conf.InitCLIConfig(configPath, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	c.Config = config
 }

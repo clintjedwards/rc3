@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/clintjedwards/rc3/internal/cli/global"
+	"github.com/clintjedwards/rc3/internal/cli/service"
+	"github.com/clintjedwards/rc3/internal/conf"
 	"github.com/spf13/cobra"
 )
 
-var appVersion = "0.0.dev_000000"
+var appVersion = "0.0.dev"
 
 // The base entry point into the CLI
 var RootCmd = &cobra.Command{
@@ -19,12 +22,19 @@ var RootCmd = &cobra.Command{
 Need a quick Linux VM or container? Our recurse internal cloud lets you spin up and manage compute effortlessly.
 
 Great for quick presentations or internal recurse only applications.
-`,
+
+### Environment Variables supported:
+` + strings.Join(conf.GetCLIEnvVars(), "\n"),
+	Version: " ", // We leave this added but empty so that the rootcmd will supply the -v flag
+	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+		global.InitState(cmd)
+	},
 }
 
 func init() {
 	RootCmd.SetVersionTemplate(humanizeVersion(appVersion))
 	RootCmd.AddCommand(cmdUp)
+	RootCmd.AddCommand(service.CmdService)
 }
 
 func Execute() error {
@@ -32,9 +42,5 @@ func Execute() error {
 }
 
 func humanizeVersion(version string) string {
-	semver, hash, err := strings.Cut(version, "_")
-	if !err {
-		return ""
-	}
-	return fmt.Sprintf("rc3 %s [%s]\n", semver, hash)
+	return fmt.Sprintf("rc3 v%s\n", version)
 }
