@@ -6,9 +6,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func instancesRouter() RouteEntry {
+func (api *APIContext) instancesRouter() RouteEntry {
 	router := func(router chi.Router) {
-		router.Get("/", getInstances)
+		router.Get("/", api.getInstances)
 	}
 
 	return RouteEntry{
@@ -17,6 +17,6 @@ func instancesRouter() RouteEntry {
 	}
 }
 
-func getInstances(w http.ResponseWriter, r *http.Request) {
+func (api *APIContext) getInstances(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("hello world!"))
 }
