@@ -31,11 +31,21 @@ func DefaultAPIConfig() *API {
 type General struct {
 	// Log level affects the entire application's log level.
 	LogLevel string `koanf:"log_level"`
+
+	// should be in format: "https://recurse.proxmox.com:8006/api2/json"
+	// omitting the api route will cause requests to fail with 501 errors that translate to 404 errors.
+	ProxmoxURL         string `koanf:"proxmox_url"`
+	ProxmoxTokenID     string `koanf:"proxmox_token_id"`
+	ProxmoxTokenSecret string `koanf:"proxmox_token_secret"`
+
+	// Connect to proxmox using TLS.
+	PromoxUseTLS bool `koanf:"proxmox_use_tls"`
 }
 
 func DefaultGeneralConfig() *General {
 	return &General{
-		LogLevel: "debug",
+		LogLevel:     "debug",
+		PromoxUseTLS: false,
 	}
 }
 

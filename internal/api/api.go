@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -16,15 +17,48 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := middleware.GetReqID(r.Context())
+		w.Header().Set("X-Request-ID", reqID)
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Data kept for the lifetime of the API.
 type APIContext struct {
 	Client *proxmox.Client
 }
 
-func newAPIContext(proxmoxUser, proxmoxPass, proxmoxURL string) *APIContext {
-	credentials := proxmox.Credentials{Username: proxmoxUser, Password: proxmoxPass}
+func newAPIContext(proxmoxURL, proxmoxTokenID, proxmoxTokenSecret string, proxmoxUseTLS bool) *APIContext {
+	var client *proxmox.Client
 
-	client := proxmox.NewClient(proxmoxURL, proxmox.WithCredentials(&credentials))
+	if proxmoxUseTLS {
+		client = proxmox.NewClient(proxmoxURL, proxmox.WithAPIToken(proxmoxTokenID, proxmoxTokenSecret))
+	} else {
+		insecureHTTPClient := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+		client = proxmox.NewClient(proxmoxURL,
+			proxmox.WithAPIToken(proxmoxTokenID, proxmoxTokenSecret),
+			proxmox.WithHTTPClient(&insecureHTTPClient),
+		)
+	}
+
+	version, err := client.Version(context.Background())
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not successfully connect to proxmox using provided url/credentials")
+	}
+
+	log.Info().Str("url", proxmoxURL).
+		Bool("tls", proxmoxUseTLS).
+		Str("token_id", proxmoxTokenID).
+		Str("version", version.Version).
+		Msg("successfully connected to proxmox")
 
 	return &APIContext{
 		Client: client,
@@ -40,6 +74,7 @@ func startServer(conf *conf.API, routes ...RouteEntry) {
 	router := chi.NewRouter()
 
 	router.Use(middleware.RequestID) // Auto-generate a request ID for us.
+	router.Use(requestIDMiddleware)  // Ensure request ID is attached to every response.
 	router.Use(middleware.RealIP)    // Automatically insert the correct external IP.
 	router.Use(middleware.Recoverer) // Don't let panics bring down the entire service.
 	router.Route("/api", func(r chi.Router) {
@@ -82,7 +117,12 @@ func startServer(conf *conf.API, routes ...RouteEntry) {
 }
 
 func StartAPIServer(conf *conf.API) {
-	api := newAPIContext("", "", "")
+	api := newAPIContext(
+		conf.General.ProxmoxURL,
+		conf.General.ProxmoxTokenID,
+		conf.General.ProxmoxTokenSecret,
+		conf.General.PromoxUseTLS,
+	)
 
 	startServer(conf,
 		api.instancesRouter(), // /api/instances
@@ -114,12 +154,20 @@ type ErrorResponse struct {
 	ErrorDetails string `json:"error_details"` // More detailed explanation
 }
 
-// write a JSON error to the user.
-func writeError(w http.ResponseWriter, statusCode int, errMsg, details string) {
+func writeError(w http.ResponseWriter, statusCode int, details string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(ErrorResponse{
-		Error:        errMsg,
+		Error:        http.StatusText(statusCode),
 		ErrorDetails: details,
 	})
+}
+
+func writeResponse(w http.ResponseWriter, statusCode int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response from server")
+		return
+	}
 }
