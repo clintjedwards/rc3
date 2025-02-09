@@ -2,15 +2,19 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/luthermonson/go-proxmox"
 )
 
 func (api *APIContext) instancesRouter() RouteEntry {
 	router := func(router chi.Router) {
 		router.Get("/", api.getInstances)
+		router.Post("/", api.createInstance)
+		router.Delete("/{id}", api.deleteInstance)
 	}
 
 	return RouteEntry{
@@ -33,6 +37,34 @@ const (
 	InstanceSizeMedium InstanceSize = "medium"
 	InstanceSizeLarge  InstanceSize = "large"
 )
+
+func (is InstanceSize) getContainerOptions() ([]proxmox.ContainerOption, error) {
+	switch is {
+	case InstanceSizeSmall:
+		return []proxmox.ContainerOption{}, nil
+	case InstanceSizeMedium:
+		return []proxmox.ContainerOption{}, nil
+	case InstanceSizeLarge:
+		return []proxmox.ContainerOption{}, nil
+	default:
+		return nil, fmt.Errorf("invalid instance size")
+	}
+}
+
+func (is *InstanceSize) UnmarshalJSON(b []byte) error {
+	var str string
+	if err := json.Unmarshal(b, &str); err != nil {
+		return err
+	}
+
+	switch InstanceSize(str) {
+	case InstanceSizeSmall, InstanceSizeMedium, InstanceSizeLarge:
+		*is = InstanceSize(str)
+		return nil
+	default:
+		return fmt.Errorf("invalid InstanceSize: %s", str)
+	}
+}
 
 type Instance struct {
 	ID       uint64       `json:"id"`
@@ -120,4 +152,65 @@ func (api *APIContext) getInstances(w http.ResponseWriter, r *http.Request) {
 	writeResponse(w, http.StatusOK, GetInstancesResponse{
 		Instances: returnedInstances,
 	})
+}
+
+type CreateInstanceRequest struct {
+	Size InstanceSize `json:"size"`
+}
+
+func (api *APIContext) createInstance(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	nodes, err := api.Client.Nodes(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("could not query for nodes while attempting to get instances: %v", err))
+		return
+	}
+
+	if len(nodes) == 0 {
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("received no proxmox nodes while attempting to create instance", err))
+		return
+
+	}
+
+	// We default to the first node that we find since that will work for the single proxmox instance we have.
+	// If we ever expand the proxmox cluster then we'll have to change this logic.
+	targetNodeName := nodes[0].Node
+
+	node, err := api.Client.Node(ctx, targetNodeName)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("could not get target node %s: %v", targetNodeName, err))
+		return
+	}
+
+	// We need to query the cluster in order to figure out what the next VMID should be.
+	cluster, err := api.Client.Cluster(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("could not get cluster: %v", err))
+		return
+	}
+
+	nextID, err := cluster.NextID(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("could not get next id for instance from cluster: %v", err))
+		return
+	}
+
+	task, err := node.NewContainer(ctx, nextID, proxmox.ContainerOption{"", ""})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("could not create new container", err))
+		return
+	}
+
+	_ = task
+}
+
+func (api *APIContext) deleteInstance(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 }
