@@ -38,10 +38,20 @@ const (
 	InstanceSizeLarge  InstanceSize = "large"
 )
 
-func (is InstanceSize) getContainerOptions() ([]proxmox.ContainerOption, error) {
-	switch is {
+func (api *APIContext) getContainerOptions(size InstanceSize) ([]proxmox.ContainerOption, error) {
+	switch size {
 	case InstanceSizeSmall:
-		return []proxmox.ContainerOption{}, nil
+		return []proxmox.ContainerOption{
+			{Name: "arch", Value: "amd64"},
+			{Name: "cores", Value: 2},
+			{Name: "cpulimit", Value: 1},
+			{Name: "description", Value: ""}, // TODO
+			{Name: "memory", Value: "2048"},  // 2 GB of memory
+			{Name: "onboot", Value: 1},       // Start on boot
+			{Name: "ostype", Value: "ubuntu"},
+			{Name: "ostemplate", Value: api.ProxmoxConfig.OSTemplate},
+			{Name: "rootfs", Value: fmt.Sprintf("%s,size=60", api.ProxmoxConfig.InstanceStorage)}, // 60 GB of memory
+		}, nil
 	case InstanceSizeMedium:
 		return []proxmox.ContainerOption{}, nil
 	case InstanceSizeLarge:

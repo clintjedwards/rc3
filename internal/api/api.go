@@ -27,14 +27,15 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 
 // Data kept for the lifetime of the API.
 type APIContext struct {
-	Client *proxmox.Client
+	Client        *proxmox.Client
+	ProxmoxConfig *conf.Proxmox
 }
 
-func newAPIContext(proxmoxURL, proxmoxTokenID, proxmoxTokenSecret string, proxmoxUseTLS bool) *APIContext {
+func newAPIContext(proxmoxConf *conf.Proxmox) *APIContext {
 	var client *proxmox.Client
 
-	if proxmoxUseTLS {
-		client = proxmox.NewClient(proxmoxURL, proxmox.WithAPIToken(proxmoxTokenID, proxmoxTokenSecret))
+	if proxmoxConf.UseTLS {
+		client = proxmox.NewClient(proxmoxConf.URL, proxmox.WithAPIToken(proxmoxConf.TokenID, proxmoxConf.TokenSecret))
 	} else {
 		insecureHTTPClient := http.Client{
 			Transport: &http.Transport{
@@ -43,8 +44,8 @@ func newAPIContext(proxmoxURL, proxmoxTokenID, proxmoxTokenSecret string, proxmo
 				},
 			},
 		}
-		client = proxmox.NewClient(proxmoxURL,
-			proxmox.WithAPIToken(proxmoxTokenID, proxmoxTokenSecret),
+		client = proxmox.NewClient(proxmoxConf.URL,
+			proxmox.WithAPIToken(proxmoxConf.TokenID, proxmoxConf.TokenSecret),
 			proxmox.WithHTTPClient(&insecureHTTPClient),
 		)
 	}
@@ -54,14 +55,15 @@ func newAPIContext(proxmoxURL, proxmoxTokenID, proxmoxTokenSecret string, proxmo
 		log.Fatal().Err(err).Msg("could not successfully connect to proxmox using provided url/credentials")
 	}
 
-	log.Info().Str("url", proxmoxURL).
-		Bool("tls", proxmoxUseTLS).
-		Str("token_id", proxmoxTokenID).
+	log.Info().Str("url", proxmoxConf.URL).
+		Bool("tls", proxmoxConf.UseTLS).
+		Str("token_id", proxmoxConf.TokenID).
 		Str("version", version.Version).
 		Msg("successfully connected to proxmox")
 
 	return &APIContext{
-		Client: client,
+		Client:        client,
+		ProxmoxConfig: proxmoxConf,
 	}
 }
 
@@ -117,12 +119,7 @@ func startServer(conf *conf.API, routes ...RouteEntry) {
 }
 
 func StartAPIServer(conf *conf.API) {
-	api := newAPIContext(
-		conf.General.ProxmoxURL,
-		conf.General.ProxmoxTokenID,
-		conf.General.ProxmoxTokenSecret,
-		conf.General.PromoxUseTLS,
-	)
+	api := newAPIContext(conf.Proxmox)
 
 	startServer(conf,
 		api.instancesRouter(), // /api/instances

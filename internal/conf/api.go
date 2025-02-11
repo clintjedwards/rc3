@@ -16,6 +16,7 @@ import (
 // API defines config settings for the REST API server.
 type API struct {
 	General     *General     `koanf:"general"`
+	Proxmox     *Proxmox     `koanf:"proxmox"`
 	Development *Development `koanf:"development"`
 	Server      *Server      `koanf:"server"`
 }
@@ -23,6 +24,7 @@ type API struct {
 func DefaultAPIConfig() *API {
 	return &API{
 		General:     DefaultGeneralConfig(),
+		Proxmox:     DefaultProxmoxConfig(),
 		Development: DefaultDevelopmentConfig(),
 		Server:      DefaultServerConfig(),
 	}
@@ -31,21 +33,40 @@ func DefaultAPIConfig() *API {
 type General struct {
 	// Log level affects the entire application's log level.
 	LogLevel string `koanf:"log_level"`
-
-	// should be in format: "https://recurse.proxmox.com:8006/api2/json"
-	// omitting the api route will cause requests to fail with 501 errors that translate to 404 errors.
-	ProxmoxURL         string `koanf:"proxmox_url"`
-	ProxmoxTokenID     string `koanf:"proxmox_token_id"`
-	ProxmoxTokenSecret string `koanf:"proxmox_token_secret"`
-
-	// Connect to proxmox using TLS.
-	PromoxUseTLS bool `koanf:"proxmox_use_tls"`
 }
 
 func DefaultGeneralConfig() *General {
 	return &General{
-		LogLevel:     "debug",
-		PromoxUseTLS: false,
+		LogLevel: "debug",
+	}
+}
+
+type Proxmox struct {
+	// should be in format: "https://recurse.proxmox.com:8006/api2/json"
+	// omitting the api route will cause requests to fail with 501 errors that translate to 404 errors.
+	URL         string `koanf:"url"`
+	TokenID     string `koanf:"token_id"`
+	TokenSecret string `koanf:"token_secret"`
+
+	// The name of the storage that containers and vms will use for their root disk.
+	//
+	// ex. 'local-lvm'
+	InstanceStorage string `koanf:"instance_storage"`
+
+	// The name of the template file that will be used as the OS for containers.
+	// (This by default is expected to be an ubuntu container. Changing the container here to a non-ubuntu os might
+	// conflict with ostype in [`ContainerOptions`]).
+	//
+	// ex. `ubuntu-22.04-standard_22.04-1_amd64.tar.zst`
+	OSTemplate string `koanf:"os_template"`
+
+	// Connect to proxmox using TLS.
+	UseTLS bool `koanf:"use_tls"`
+}
+
+func DefaultProxmoxConfig() *Proxmox {
+	return &Proxmox{
+		UseTLS: false,
 	}
 }
 
