@@ -57,7 +57,9 @@ type Proxmox struct {
 	// (This by default is expected to be an ubuntu container. Changing the container here to a non-ubuntu os might
 	// conflict with ostype in [`ContainerOptions`]).
 	//
-	// ex. `ubuntu-22.04-standard_22.04-1_amd64.tar.zst`
+	// Full path is needed.
+	//
+	// ex. `local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst`
 	OSTemplate string `koanf:"os_template"`
 
 	// Connect to proxmox using TLS.
