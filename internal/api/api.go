@@ -79,6 +79,7 @@ func startServer(conf *conf.API, routes ...RouteEntry) {
 	router.Use(requestIDMiddleware)  // Ensure request ID is attached to every response.
 	router.Use(middleware.RealIP)    // Automatically insert the correct external IP.
 	router.Use(middleware.Recoverer) // Don't let panics bring down the entire service.
+	router.Use(loggingMiddleware)    // Log requests
 	router.Route("/api", func(r chi.Router) {
 		for _, route := range routes {
 			r.Route(route.Pattern, route.Router)
@@ -87,7 +88,7 @@ func startServer(conf *conf.API, routes ...RouteEntry) {
 
 	httpServer := http.Server{
 		Addr:         conf.Server.Host,
-		Handler:      loggingMiddleware(router),
+		Handler:      router,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
@@ -144,6 +145,14 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			Dur("elapsed_ms", time.Since(start)).
 			Msg("")
 	})
+}
+
+type AuthContext struct {
+	RecurserID string
+}
+
+func CheckAuth(r *http.Request) AuthContext {
+	return AuthContext{}
 }
 
 type ErrorResponse struct {

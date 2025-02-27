@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/luthermonson/go-proxmox"
@@ -64,6 +65,7 @@ func (api *APIContext) getContainerOptions(size InstanceSize) ([]proxmox.Contain
 		{Name: "features", Value: "nesting=1"},
 		{Name: "ostemplate", Value: api.ProxmoxConfig.OSTemplate},
 		{Name: "net0", Value: "name=eth0,bridge=vmbr0,firewall=0,ip=dhcp"},
+		{Name: "rootfs", Value: fmt.Sprintf("%s,size=60", api.ProxmoxConfig.InstanceStorage)}, // 60 GB of storage
 	}
 
 	switch size {
@@ -71,29 +73,39 @@ func (api *APIContext) getContainerOptions(size InstanceSize) ([]proxmox.Contain
 		options = append(options,
 			proxmox.ContainerOption{Name: "cores", Value: 2},
 			proxmox.ContainerOption{Name: "cpulimit", Value: 2},
-			proxmox.ContainerOption{Name: "memory", Value: "2048"},                                                       // 2 GB of memory
-			proxmox.ContainerOption{Name: "rootfs", Value: fmt.Sprintf("%s,size=60", api.ProxmoxConfig.InstanceStorage)}, // 60 GB of memory
+			proxmox.ContainerOption{Name: "memory", Value: "2048"}, // 2 GB of memory
 		)
 		return options, nil
 	case InstanceSizeMedium:
 		options = append(options,
 			proxmox.ContainerOption{Name: "cores", Value: 2},
 			proxmox.ContainerOption{Name: "cpulimit", Value: 2},
-			proxmox.ContainerOption{Name: "memory", Value: "4096"},                                                       // 4 GB of memory
-			proxmox.ContainerOption{Name: "rootfs", Value: fmt.Sprintf("%s,size=60", api.ProxmoxConfig.InstanceStorage)}, // 60 GB of memory
+			proxmox.ContainerOption{Name: "memory", Value: "4096"}, // 4 GB of memory
 		)
 		return options, nil
 	case InstanceSizeLarge:
 		options = append(options,
 			proxmox.ContainerOption{Name: "cores", Value: 4},
 			proxmox.ContainerOption{Name: "cpulimit", Value: 4},
-			proxmox.ContainerOption{Name: "memory", Value: "8192"},                                                       // 8 GB of memory
-			proxmox.ContainerOption{Name: "rootfs", Value: fmt.Sprintf("%s,size=60", api.ProxmoxConfig.InstanceStorage)}, // 60 GB of memory
+			proxmox.ContainerOption{Name: "memory", Value: "8192"}, // 8 GB of memory
 		)
 		return options, nil
 	default:
 		return nil, fmt.Errorf("invalid instance size")
 	}
+}
+
+// Add tags to a container option list.
+func createTagsContainerOption(tags ...string) proxmox.ContainerOption {
+	tagStr := ""
+
+	for _, tag := range tags {
+		tagStr += tag + ","
+	}
+
+	tagStr = strings.TrimSuffix(tagStr, ",")
+
+	return proxmox.ContainerOption{Name: "tags", Value: tagStr}
 }
 
 func (is *InstanceSize) UnmarshalJSON(b []byte) error {
@@ -204,6 +216,8 @@ type CreateInstanceRequest struct {
 	InstanceType InstanceType `json:"type"`
 }
 
+type CreateInstanceResponse struct{}
+
 func (api *APIContext) createInstance(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -246,6 +260,7 @@ func (api *APIContext) createInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Proxmox gives us an endpoint we can hit to get the next sequential ID for the next instance.
 	nextID, err := cluster.NextID(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError,
@@ -261,16 +276,23 @@ func (api *APIContext) createInstance(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		task, err := node.NewContainer(ctx, nextID, containerOptions...)
+		createTagsContainerOption(
+			fmt.Sprintf("size=%s", request.Size),
+			fmt.Sprintf("recurser=%s", "TODO"),
+		)
+
+		_, err = node.NewContainer(ctx, nextID, containerOptions...)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError,
 				fmt.Sprintf("could not create new container: %v", err))
 			return
 		}
 
-		_ = task
-
+		writeResponse(w, http.StatusCreated, CreateInstanceResponse{})
+		return
 	case InstanceTypeVM:
+		writeError(w, http.StatusNotImplemented, "VMs are not currently supported")
+		return
 	default:
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("invalid instance type: %v", err))
 		return
@@ -321,5 +343,7 @@ func (api *APIContext) deleteInstance(w http.ResponseWriter, r *http.Request) {
 
 	// TODO(): WE need to go get the details of the instance here to see who owns it.
 
-	node.Container(ctx, strconv.Atoi(id))
+	_ = node
+	_ = id
+	// node.Container(ctx, strconv.Atoi(id))
 }
