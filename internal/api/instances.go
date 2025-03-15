@@ -236,7 +236,7 @@ func (api *APIContext) createInstance(w http.ResponseWriter, r *http.Request) {
 
 	if len(nodes) == 0 {
 		writeError(w, http.StatusInternalServerError,
-			fmt.Sprintf("received no proxmox nodes while attempting to create instance", err))
+			fmt.Sprintf("received no proxmox nodes while attempting to create instance: %v", err))
 		return
 
 	}
@@ -272,7 +272,7 @@ func (api *APIContext) createInstance(w http.ResponseWriter, r *http.Request) {
 	case InstanceTypeContainer:
 		containerOptions, err := api.getContainerOptions(request.Size)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("could not get container settings", err))
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("could not get container settings: %v", err))
 			return
 		}
 
@@ -306,7 +306,7 @@ func (api *APIContext) deleteInstance(w http.ResponseWriter, r *http.Request) {
 
 	idStr := chi.URLParam(r, "id")
 	if idStr == "" {
-		writeError(w, http.StatusInternalServerError, "received empty identifer in path")
+		writeError(w, http.StatusInternalServerError, "received empty identifier in path")
 		return
 	}
 
