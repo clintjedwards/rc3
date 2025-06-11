@@ -59,7 +59,7 @@ func newAPIContext(proxmoxConf *conf.Proxmox) *APIContext {
 		Bool("tls", proxmoxConf.UseTLS).
 		Str("token_id", proxmoxConf.TokenID).
 		Str("version", version.Version).
-		Msg("successfully connected to proxmox")
+		Msg("successfully connected to Proxmox")
 
 	return &APIContext{
 		Client:        client,

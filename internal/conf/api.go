@@ -68,6 +68,7 @@ type Proxmox struct {
 
 func DefaultProxmoxConfig() *Proxmox {
 	return &Proxmox{
+		URL:    "http://localhost:8006/api2/json",
 		UseTLS: false,
 	}
 }
@@ -168,6 +169,7 @@ func InitAPIConfig(userDefinedPath string, loadDefaults bool) (*API, error) {
 func GetAPIEnvVars() []string {
 	api := API{
 		General:     &General{},
+		Proxmox:     &Proxmox{},
 		Development: &Development{},
 		Server:      &Server{},
 	}

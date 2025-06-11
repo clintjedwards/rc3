@@ -67,3 +67,25 @@ qemu-system-x86_64 \
 http://localhost:8006
 ```
 
+### Connecting to Proxmox for Local Development
+
+Before running the backend, you’ll need to create a Proxmox API token and configure the environment.
+
+#### Create API Token in Proxmox
+
+1. Log in to your Proxmox instance (typically at `http://localhost:8006` if you're using the above commands).
+2. Navigate to **Datacenter → Permissions → API Tokens**.
+3. Select your user (e.g. `root@pam`) and click **Add**.
+4. For testing purposes, **disable *Privilege Separation*** (this allows the token full access for now — do not do this in production).
+5. Save the token. You will be provided a **Token ID** and **Token Secret**.
+
+#### Export Required Environment Variables
+
+Once you have your token, export the following environment variables:
+
+```bash
+export RC3_PROXMOX__TOKEN_ID='root@pam!your-token-id'
+export RC3_PROXMOX__TOKEN_SECRET='your-token-secret'
+```
+
+You'll then be able to run `make run-backend` to get RC3 to connect to Proxmox.
